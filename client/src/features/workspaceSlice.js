@@ -136,7 +136,6 @@ const workspaceSlice = createSlice({
                     state.currentWorkspace=action.payload[0]
                 }
             }
-
             state.loading = false;
         }); 
         builder.addCase(fetchWorkspaces.rejected, (state) => {
