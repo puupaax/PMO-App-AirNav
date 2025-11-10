@@ -18,7 +18,7 @@ const Layout = () => {
     useEffect(() => {
         dispatch(loadTheme())
     }, [])
-    
+
     console.log("CLERK KEY:", import.meta.env.VITE_CLERK_PUBLISHABLE_KEY)
 
     if (!isLoaded) {
@@ -28,7 +28,6 @@ const Layout = () => {
             </div>
         )
     }
-
 
     if (!user){
         return (
