@@ -53,7 +53,7 @@ export const createProject = async(req, res) => {
             })
             await prisma.projectMember.createMany({
                 data:
-                membersToAdd.map(memberId = ({
+                membersToAdd.map(memberId => ({
                     projectId: project.id,
                     userId: memberId
                 }))
