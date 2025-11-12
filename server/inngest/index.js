@@ -39,7 +39,7 @@ const syncUserDeletion = inngest.createFunction(
 // Inngest Function to update user in database
 const syncUserUpdation = inngest.createFunction(
     { id: 'update-user-from-clerk' },
-    { event: 'clerk/user.created' },
+    { event: 'clerk/user.updated' },
     async({ event })=> {
         const {data} = event
         await prisma.user.create({
@@ -55,7 +55,7 @@ const syncUserUpdation = inngest.createFunction(
     }
 )
 
-const syyncWorkspaceCreation = inngest.createFunction(
+const syncWorkspaceCreation = inngest.createFunction(
         {id: 'sync-workspace-from-clerk'},
         { event: 'clerk/organization.created' },
         async({ event })=> {
@@ -125,7 +125,7 @@ const syncWorkspaceMemberCreation = inngest.createFunction(
             data: {
                 userId: data.user_id,
                 workspaceId: data.organization_id,
-                role: String(data.role_name).toupperCase(),
+                role: String(data.role_name).toUpperCase(),
             }
         })
     }
@@ -222,7 +222,7 @@ export const functions = [
     syncUserUpdation,
     syncWorkspaceDeletion,
     syncWorkspaceMemberCreation,
-    syyncWorkspaceCreation,
+    syncWorkspaceCreation,
     syncWorkspaceUpdation,
     sendTaskAssignmentEmail
 ];
