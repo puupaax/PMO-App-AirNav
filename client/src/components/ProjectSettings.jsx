@@ -2,8 +2,16 @@ import { format } from "date-fns";
 import { Plus, Save } from "lucide-react";
 import { useEffect, useState } from "react";
 import AddProjectMember from "./AddProjectMember";
+import { useDispatch } from "react-redux";
+import { useAuth } from "@clerk/clerk-react";
+import toast from "react-hot-toast";
+import { fetchWorkspaces } from "../features/workspaceSlice";
+import api from "../configs/api";
 
 export default function ProjectSettings({ project }) {
+
+    const dispatch = useDispatch();
+    const {getToken} = useAuth();
 
     const [formData, setFormData] = useState({
         name: "New Website Launch",
@@ -20,6 +28,21 @@ export default function ProjectSettings({ project }) {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        setIsSubmitting(true);
+        toast.loading("Saving project settings...");
+        try {
+            const {data} =  await api.put('api/projects', formData, {headers: {Authorization: `Bearer ${await getToken()}`}})
+            setIsDialogOpen(false);
+            dispatch(fetchWorkspaces({getToken}));
+            toast.dismissAll();
+            toast.success("Project updated successfully");  
+        } catch (error) {
+            toast.dismissAll();
+            toast.error(error?.response?.data?.message || error.message);   
+            
+        }finally{
+            setIsSubmitting(false);
+        }
 
     };
 
@@ -89,7 +112,7 @@ export default function ProjectSettings({ project }) {
                     {/* Progress */}
                     <div className="space-y-2">
                         <label className={labelClasses}>Progress: {formData.progress}%</label>
-                        <input type="range" min="0" max="100" step="5" value={formData.progress} onChange={(e) => setFormData({ ...formData, progress: Number(e.target.value) })} className="w-full accent-blue-500 dark:accent-blue-400" />
+                        <input type="range" min="0" max="100" step="1" value={formData.progress} onChange={(e) => setFormData({ ...formData, progress: Number(e.target.value) })} className="w-full accent-blue-500 dark:accent-blue-400" />
                     </div>
 
                     {/* Save Button */}
