@@ -51,7 +51,6 @@ const Sidebar = ({ isSidebarOpen, setIsSidebarOpen }) => {
                     <ProjectSidebar />
                 </div>
 
-
             </div>
 
         </div>

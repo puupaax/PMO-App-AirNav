@@ -97,7 +97,7 @@ export default function ProjectDetail() {
                 <div className="inline-flex flex-wrap max-sm:grid grid-cols-3 gap-2 border border-zinc-200 dark:border-zinc-800 rounded overflow-hidden">
                     {[
                         { key: "tasks", label: "Tasks", icon: FileStackIcon },
-                        { key: "calendar", label: "Calendar", icon: CalendarIcon },
+                        { key: "calendar", label: "Timeline", icon: CalendarIcon },
                         { key: "analytics", label: "Analytics", icon: BarChart3Icon },
                         { key: "settings", label: "Settings", icon: SettingsIcon },
                     ].map((tabItem) => (
@@ -121,7 +121,7 @@ export default function ProjectDetail() {
                     )}
                     {activeTab === "calendar" && (
                         <div className=" dark:bg-zinc-900/40 rounded max-w-6xl">
-                            <ProjectCalendar tasks={tasks} />
+                            <ProjectCalendar tasks={tasks} project={project} />
                         </div>
                     )}
                     {activeTab === "settings" && (
