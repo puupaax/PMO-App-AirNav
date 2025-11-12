@@ -66,3 +66,7 @@
         background-color: #3b82f6;
     }
 }
+
+html, body {
+    overflow-x: hidden;
+}

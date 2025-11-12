@@ -125,6 +125,8 @@ model Task {
     type        TaskType   @default(TASK)
     priority    Priority   @default(MEDIUM)
     assigneeId  String
+    start_date  DateTime
+    end_date    DateTime
     due_date    DateTime
     createdAt   DateTime   @default(now())
     updatedAt   DateTime   @updatedAt

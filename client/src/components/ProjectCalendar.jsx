@@ -1,186 +1,235 @@
-import { useState } from "react";
-import { format, isSameDay, isBefore, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths } from "date-fns";
-import { CalendarIcon, Clock, User, ChevronLeft, ChevronRight } from "lucide-react";
+import React, { useMemo, useRef, useState, useEffect } from "react";
+import { format, differenceInCalendarDays, addDays, startOfMonth, addMonths } from "date-fns";
 
-const typeColors = {
-    BUG: "bg-red-200 text-red-800 dark:bg-red-500 dark:text-red-900",
-    FEATURE: "bg-blue-200 text-blue-800 dark:bg-blue-500 dark:text-blue-900",
-    TASK: "bg-green-200 text-green-800 dark:bg-green-500 dark:text-green-900",
-    IMPROVEMENT: "bg-purple-200 text-purple-800 dark:bg-purple-500 dark:text-purple-900",
-    OTHER: "bg-amber-200 text-amber-800 dark:bg-amber-500 dark:text-amber-900",
+// Status color map to match the sample image
+const statusColors = {
+    LATE: "#3b82f6", // blue
+    OVERDUE: "#ef4444", // red
+    UNDERWAY: "#fb923c", // orange
+    DEFAULT: "#c7c7c7",
 };
 
-const priorityBorders = {
-    LOW: "border-zinc-300 dark:border-zinc-600",
-    MEDIUM: "border-amber-300 dark:border-amber-500",
-    HIGH: "border-orange-300 dark:border-orange-500",
-};
+// Minimal Gantt-like chart component to replace calendar
+const ProjectCalendar = ({ tasks = [], project = null }) => {
+    // Build rows from tasks: each task becomes a row
+    const rows = useMemo(() => {
+        if (!tasks || tasks.length === 0) return [];
 
-const ProjectCalendar = ({ tasks }) => {
-    const [selectedDate, setSelectedDate] = useState(new Date());
-    const [currentMonth, setCurrentMonth] = useState(new Date());
+        const today = new Date();
 
-    const today = new Date();
-    const getTasksForDate = (date) => tasks.filter((task) => isSameDay(task.due_date, date));
+        return tasks.map((t) => {
+            const title = t.title || `Task ${t.id}`;
+            const end = t.due_date ? new Date(t.due_date) : null;
+            // prefer project start_date, else task.createdAt, else estimate
+            const startFromProject = project && project.start_date ? new Date(project.start_date) : null;
+            const start = startFromProject || (t.createdAt ? new Date(t.createdAt) : (end ? addDays(end, -7) : addDays(today, -3)));
 
-    const upcomingTasks = tasks
-        .filter((task) => task.due_date && !isBefore(task.due_date, today) && task.status !== "DONE")
-        .sort((a, b) => new Date(a.due_date) - new Date(b.due_date))
-        .slice(0, 5);
+            // derive status from task.status and due date
+            let status = "UNDERWAY";
+            if (t.status === "DONE") status = "DEFAULT";
+            else if (end && end < today) status = "OVERDUE";
+            else if (end && end <= addDays(today, 7)) status = "LATE";
 
-    const overdueTasks = tasks.filter((task) => task.due_date && isBefore(task.due_date, today) && task.status !== "DONE");
+            return { name: title, start, end: end || addDays(start, 1), status };
+        }).slice(0, 50); // cap rows for performance
+    }, [tasks, project]);
 
-    const daysInMonth = eachDayOfInterval({
-        start: startOfMonth(currentMonth),
-        end: endOfMonth(currentMonth),
-    });
+    // Compute timeline range
+    const { timelineStart, timelineEnd, totalDays } = useMemo(() => {
+        if (!rows || rows.length === 0) {
+            const s = new Date();
+            return { timelineStart: s, timelineEnd: addDays(s, 7), totalDays: 7 };
+        }
+        let minD = rows[0].start || new Date();
+        let maxD = rows[0].end || new Date();
+        rows.forEach((r) => {
+            if (r.start && r.start < minD) minD = r.start;
+            if (r.end && r.end > maxD) maxD = r.end;
+        });
+        // add small padding
+        minD = addDays(minD, -7);
+        maxD = addDays(maxD, 7);
+        const days = Math.max(1, differenceInCalendarDays(maxD, minD));
+        return { timelineStart: minD, timelineEnd: maxD, totalDays: days };
+    }, [rows]);
 
+    // build month segments (each month will be displayed as 4 week-columns)
+    const monthsAll = useMemo(() => {
+        const start = startOfMonth(timelineStart);
+        const m = [];
+        let cursor = start;
+        while (cursor <= timelineEnd) {
+            m.push({ label: format(cursor, "MMMM yyyy"), monthStart: cursor });
+            cursor = addMonths(cursor, 1);
+        }
+        return m;
+    }, [timelineStart, timelineEnd]);
 
-    const handleMonthChange = (direction) => {
-        setCurrentMonth((prev) => (direction === "next" ? addMonths(prev, 1) : subMonths(prev, 1)));
+    // pagination/view settings
+    const MONTHS_PER_PAGE = 12; // visible viewport shows 12 months width-wise
+    // total columns for entire timeline (all months)
+    const totalColumnsAll = monthsAll.length * 4;
+    const totalColumns = totalColumnsAll; // we'll render all columns but viewport shows 12 months
+
+    // build column date ranges for the full timeline (all months * 4) then slice the visible window
+    const columnsAll = useMemo(() => {
+        const allCols = Array.from({ length: monthsAll.length * 4 }).map((_, col) => {
+            const startOffset = Math.round((col * totalDays) / (monthsAll.length * 4));
+            const endOffset = Math.round(((col + 1) * totalDays) / (monthsAll.length * 4));
+            const colStart = addDays(timelineStart, startOffset);
+            const colEnd = addDays(timelineStart, endOffset);
+            return { colStart, colEnd };
+        });
+        return allCols;
+    }, [timelineStart, totalDays, monthsAll.length]);
+
+    const visibleColumns = columnsAll; // render all columns, scrolling will show viewport of 12 months
+
+    // grid sizing (pixels) — adjust to change compactness
+    // We compute a responsive cell size so 12 months fill the card when possible.
+    const MIN_CELL = 20; // minimum cell size in px
+    const leftWidth = 160; // label column
+    const rightWidth = 120; // date column on the right
+    const [computedCellSize, setComputedCellSize] = useState(24);
+
+    // drag-to-scroll refs
+    const scrollerRef = useRef(null);
+    const isDraggingRef = useRef(false);
+    const startXRef = useRef(0);
+    const scrollLeftRef = useRef(0);
+    const containerRef = useRef(null);
+
+    // compute responsive cell size so 12 months fit the visible card width when possible
+    useEffect(() => {
+        const el = scrollerRef.current || containerRef.current;
+        if (!el) return;
+        const resize = () => {
+            const available = el.clientWidth - leftWidth - rightWidth; // pixels for cells in viewport
+            const monthsToFit = Math.min(MONTHS_PER_PAGE, monthsAll.length);
+            const maxCols = Math.max(1, monthsToFit * 4);
+            const ideal = Math.floor(available / maxCols);
+            setComputedCellSize(Math.max(MIN_CELL, ideal));
+        };
+        resize();
+        window.addEventListener('resize', resize);
+        return () => window.removeEventListener('resize', resize);
+    }, [leftWidth, rightWidth, monthsAll.length]);
+
+    // grid-based row renderer: returns grid cells in sequence (left label, N cells, right label)
+    const renderRow = (row) => {
+        const bg = statusColors[row.status] || statusColors.DEFAULT;
+        return (
+            <>
+                <div style={{ padding: '6px 8px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} className="text-sm text-zinc-700 dark:text-zinc-300">{row.name}</div>
+                {visibleColumns.map((c, i) => {
+                    const overlap = (row.start < c.colEnd) && (row.end > c.colStart);
+                    return (
+                        <div key={`${row.name}-c-${i}`} style={{ width: computedCellSize, height: computedCellSize, borderRight: '1px solid rgba(0,0,0,0.06)' }}>
+                            <div style={{ width: '100%', height: '100%', background: overlap ? bg : 'transparent', borderRadius: 2 }} />
+                        </div>
+                    );
+                })}
+                <div style={{ padding: '6px 8px' }} className="text-xs text-zinc-500 dark:text-zinc-400 text-right">{format(row.start, 'MMM d')}</div>
+            </>
+        );
     };
 
     return (
-        <div className="grid lg:grid-cols-3 gap-6">
-            {/* Calendar View */}
-            <div className="lg:col-span-2 ">
-                <div className="not-dark:bg-white dark:bg-gradient-to-br dark:from-zinc-800/70 dark:to-zinc-900/50 border border-zinc-300 dark:border-zinc-800 rounded-lg p-4">
-                    <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-zinc-900 dark:text-white text-md flex gap-2 items-center max-sm:hidden">
-                            <CalendarIcon className="size-5" /> Task Calendar disini 
-                        </h2>
-                        <div className="flex gap-2 items-center">
-                            <button onClick={() => handleMonthChange("prev")}>
-                                <ChevronLeft className="size-5 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white" />
-                            </button>
-                            <span className="text-zinc-900 dark:text-white">{format(currentMonth, "MMMM yyyy")}</span>
-                            <button onClick={() => handleMonthChange("next")}>
-                                <ChevronRight className="size-5 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white" />
-                            </button>
-                        </div>
+        <div className="not-dark:bg-white dark:bg-gradient-to-br dark:from-zinc-800/70 dark:to-zinc-900/50 border border-zinc-300 dark:border-zinc-800 rounded-lg p-4">
+            <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                    <h2 className="text-zinc-900 dark:text-white text-md">Project Timeline</h2>
+                    {/* viewport shows 12 months; no explicit pagination controls - user can drag/scroll */}
+                </div>
+                <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-400">
+                        <span className="w-3 h-3 rounded-full" style={{ background: statusColors.LATE }} /> Late
                     </div>
-
-                    <div className="grid grid-cols-7 text-xs text-zinc-600 dark:text-zinc-400 mb-2 text-center">
-                        {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
-                            <div key={day}>{day}</div>
-                        ))}
+                    <div className="flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-400">
+                        <span className="w-3 h-3 rounded-full" style={{ background: statusColors.OVERDUE }} /> Overdue
                     </div>
-
-                    <div className="grid grid-cols-7 gap-2">
-                        {daysInMonth.map((day) => {
-                            const dayTasks = getTasksForDate(day);
-                            const isSelected = isSameDay(day, selectedDate);
-                            const hasOverdue = dayTasks.some((t) => t.status !== "DONE" && isBefore(t.due_date, today));
-
-                            return (
-                                <button
-                                    key={day}
-                                    onClick={() => setSelectedDate(day)}
-                                    className={`sm:h-14 rounded-md flex flex-col items-center justify-center text-sm
-                                    ${isSelected ? "bg-blue-200 text-blue-900 dark:bg-blue-600 dark:text-white" : "bg-zinc-50 text-zinc-900 dark:bg-zinc-800/40 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700"}
-                                    ${hasOverdue ? "border border-red-300 dark:border-red-500" : ""}`}
-                                >
-                                    <span>{format(day, "d")}</span>
-                                    {dayTasks.length > 0 && (
-                                        <span className="text-[10px] text-blue-700 dark:text-blue-400">{dayTasks.length} tasks</span>
-                                    )}
-                                </button>
-                            );
-                        })}
+                    <div className="flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-400">
+                        <span className="w-3 h-3 rounded-full" style={{ background: statusColors.UNDERWAY }} /> Underway
                     </div>
                 </div>
-
-                {/* Tasks for Selected Day */}
-                {getTasksForDate(selectedDate).length > 0 && (
-                    <div className=" not-dark:bg-white mt-6 dark:bg-gradient-to-br dark:from-zinc-800/70 dark:to-zinc-900/50 border border-zinc-300 dark:border-zinc-800 rounded-lg p-4">
-                        <h3 className="text-zinc-900 dark:text-white text-lg mb-3">
-                            Tasks for {format(selectedDate, "MMM d, yyyy")}
-                        </h3>
-                        <div className="space-y-3">
-                            {getTasksForDate(selectedDate).map((task) => (
-                                <div
-                                    key={task.id}
-                                    className={`bg-zinc-50 dark:bg-zinc-800/40 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition p-4 rounded border-l-4 ${priorityBorders[task.priority]}`}
-                                >
-                                    <div className="flex justify-between mb-2">
-                                        <h4 className="text-zinc-900 dark:text-white font-medium">{task.title}</h4>
-                                        <span className={`px-2 py-0.5 rounded text-xs ${typeColors[task.type]}`}>
-                                            {task.type}
-                                        </span>
-                                    </div>
-                                    <div className="flex justify-between text-xs text-zinc-600 dark:text-zinc-400">
-                                        <span className="capitalize">{task.priority.toLowerCase()} priority</span>
-                                        {task.assignee && (
-                                            <span className="flex items-center gap-1">
-                                                <User className="w-3 h-3" />
-                                                {task.assignee.name}
-                                            </span>
-                                        )}
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                )}
             </div>
 
-            {/* Sidebar */}
-            <div className="space-y-6">
-                {/* Upcoming Tasks */}
-                <div className="bg-white dark:bg-zinc-950 dark:bg-gradient-to-br dark:from-zinc-800/70 dark:to-zinc-900/50 border border-zinc-300 dark:border-zinc-800 rounded-lg p-4">
-                    <h3 className="text-zinc-900 dark:text-white text-sm flex items-center gap-2 mb-3">
-                        <Clock className="w-4 h-4" /> Upcoming Tasks
-                    </h3>
-                    {upcomingTasks.length === 0 ? (
-                        <p className="text-zinc-500 dark:text-zinc-400 text-sm text-center">No upcoming tasks</p>
-                    ) : (
-                        <div className="space-y-2">
-                            {upcomingTasks.map((task) => (
-                                <div
-                                    key={task.id}
-                                    className="bg-zinc-50 dark:bg-zinc-800/40 hover:bg-zinc-100 dark:hover:bg-zinc-800 p-3 rounded-lg transition"
-                                >
-                                    <div className="flex justify-between items-start text-sm">
-                                        <span className="text-zinc-900 dark:text-white">{task.title}</span>
-                                        <span className={`text-xs px-2 py-0.5 rounded ${typeColors[task.type]}`}>
-                                            {task.type}
-                                        </span>
-                                    </div>
-                                    <p className="text-xs text-zinc-600 dark:text-zinc-400">{format(task.due_date, "MMM d")}</p>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
+            <div
+                style={{ overflowX: 'auto', cursor: 'grab' }}
+                ref={scrollerRef}
+                onMouseDown={(e) => {
+                    isDraggingRef.current = true;
+                    scrollerRef.current.classList.add('cursor-grabbing');
+                    startXRef.current = e.pageX - scrollerRef.current.offsetLeft;
+                    scrollLeftRef.current = scrollerRef.current.scrollLeft;
+                }}
+                onMouseMove={(e) => {
+                    if (!isDraggingRef.current) return;
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const x = e.pageX - scrollerRef.current.offsetLeft;
+                    const walk = (x - startXRef.current) * 1; // scroll-fast multiplier
+                    scrollerRef.current.scrollLeft = scrollLeftRef.current - walk;
+                }}
+                onMouseUp={() => {
+                    isDraggingRef.current = false;
+                    scrollerRef.current && scrollerRef.current.classList.remove('cursor-grabbing');
+                }}
+                onMouseLeave={() => {
+                    isDraggingRef.current = false;
+                    scrollerRef.current && scrollerRef.current.classList.remove('cursor-grabbing');
+                }}
+                onTouchStart={(e) => {
+                    isDraggingRef.current = true;
+                    startXRef.current = e.touches[0].pageX - scrollerRef.current.offsetLeft;
+                    scrollLeftRef.current = scrollerRef.current.scrollLeft;
+                }}
+                onTouchMove={(e) => {
+                    if (!isDraggingRef.current) return;
+                    e.preventDefault(); // cegah halaman ikut geser di mobile
+            e.stopPropagation();
+                    const x = e.touches[0].pageX - scrollerRef.current.offsetLeft;
+                    const walk = (x - startXRef.current) * 1;
+                    scrollerRef.current.scrollLeft = scrollLeftRef.current - walk;
+                }}
+                onTouchEnd={() => { isDraggingRef.current = false; }}
+            >
+                <div ref={containerRef} style={{ minWidth: leftWidth + (totalColumns * computedCellSize) + rightWidth }}>
+                    {/* Grid container: left label | repeated columns | right label */}
+                    <div style={{ display: 'grid', gridTemplateColumns: `${leftWidth}px repeat(${totalColumns}, ${computedCellSize}px) ${rightWidth}px`, alignItems: 'center', gap: 0 }}>
+                        {/* months header (each spans 4 columns) */}
+                        <div />
+                        {monthsAll.map((m, mi) => (
+                            <div key={mi} style={{ gridColumn: `span 4`, textAlign: 'center', padding: '6px 4px', fontWeight: 600 }} className="text-zinc-700 dark:text-zinc-300">{format(m.monthStart, 'MMM yyyy')}</div>
+                        ))}
+                        <div />
 
-                {/* Overdue Tasks */}
-                {overdueTasks.length > 0 && (
-                    <div className="bg-white dark:bg-zinc-950  border border-red-300 dark:border-red-500 border-l-4 rounded-lg p-4">
-                        <h3 className="text-red-700 dark:text-red-400 text-sm flex items-center gap-2 mb-3">
-                            <Clock className="w-4 h-4" /> Overdue Tasks ({overdueTasks.length})
-                        </h3>
-                        <div className="space-y-2">
-                            {overdueTasks.slice(0, 5).map((task) => (
-                                <div key={task.id} className="bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/30 p-3 rounded-lg transition" >
-                                    <div className="flex justify-between text-sm text-zinc-900 dark:text-white">
-                                        <span>{task.title}</span>
-                                        <span className="text-xs px-2 py-0.5 rounded bg-red-200 dark:bg-red-500 text-red-900 dark:text-red-900">
-                                            {task.type}
-                                        </span>
-                                    </div>
-                                    <p className="text-xs text-red-600 dark:text-red-300">
-                                        Due {format(task.due_date, "MMM d")}
-                                    </p>
-                                </div>
-                            ))}
-                            {overdueTasks.length > 5 && (
-                                <p className="text-xs text-zinc-500 dark:text-zinc-400 text-center">
-                                    +{overdueTasks.length - 5} more
-                                </p>
-                            )}
-                        </div>
+                        {/* week labels row */}
+                        <div />
+                        {monthsAll.map((m, mi) => (
+                            ['I', 'II', 'III', 'IV'].map((wk, wi) => (
+                                <div key={`${mi}-${wi}`} style={{ width: computedCellSize, height: computedCellSize, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11 }} className="text-zinc-500 dark:text-zinc-400">{wk}</div>
+                            ))
+                        ))}
+                        <div />
+
+                        {/* rows area: render each row as sequential grid children */}
+                        {rows.length === 0 ? (
+                            <>
+                                <div />
+                                {Array.from({ length: totalColumns }).map((_, i) => <div key={i} style={{ width: computedCellSize, height: computedCellSize, borderRight: '1px solid rgba(0,0,0,0.06)' }} />)}
+                                <div />
+                                <div style={{ gridColumn: `1 / ${totalColumns + 3}` }} className="py-8 text-center text-zinc-600 dark:text-zinc-400">No tasks available to build the timeline.</div>
+                            </>
+                        ) : (
+                            rows.map((r, idx) => (
+                                <React.Fragment key={r.name || idx}>
+                                    {renderRow(r)}
+                                </React.Fragment>
+                            ))
+                        )}
                     </div>
-                )}
+                </div>
             </div>
         </div>
     );
