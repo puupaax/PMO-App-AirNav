@@ -27,11 +27,16 @@ const AddProjectMember = ({ isDialogOpen, setIsDialogOpen }) => {
     const [email, setEmail] = useState('');
     const [isAdding, setIsAdding] = useState(false);
 
+    console.log("currentWorkspace:", currentWorkspace);
+    console.log("projectId from URL:", id);
+    console.log("found project:", project);
+
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         setIsAdding(true);
         try {
-            await api.post('/api/projects/${project.id}/addMember', {email}, {headers: {Authorization: `Bearer ${await getToken()}`}})
+            await api.post(`/api/projects/${project.id}/addMember`, {email}, {headers: {Authorization: `Bearer ${await getToken()}`}})
             toast.success("added member to project successfully");
             setIsDialogOpen(false);
             dispatch(fetchWorkspaces({getToken}));
