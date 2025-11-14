@@ -1,11 +1,14 @@
 import express from "express";
-import { addEvidence } from "../controllers/evidenceController.js";
+import { addEvidence, getTaskEvidences } from "../controllers/evidenceController.js";
 import upload from "../middlewares/uplMiddleware.js";
 
 const evidenceRouter = express.Router();
 
 // evidenceRouter.post('/', addEvidence);
 evidenceRouter.post("/", upload.single("attachment"), addEvidence);
+//evidenceRouter.get("/", getAllEvidence);
+evidenceRouter.get("/:taskId", getTaskEvidences);
+
 
 // evidenceRouter.get("/:taskId", getTaskEvidences);
 
