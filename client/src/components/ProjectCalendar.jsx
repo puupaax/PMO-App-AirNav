@@ -12,6 +12,9 @@ const statusColors = {
 
 // Minimal Gantt-like chart component to replace calendar
 const ProjectCalendar = ({ tasks = [], project }) => {
+    // console.log("ProjectCalendar project end_date =", project.end_date);
+    console.log("tasks start date =", tasks);
+
     // Build rows from tasks: each task becomes a row
     const rows = useMemo(() => {
         if (!tasks || tasks.length === 0) return [];
@@ -24,7 +27,7 @@ const ProjectCalendar = ({ tasks = [], project }) => {
             // const due = t.due_date ? new Date(t.due_date) : null;
             // prefer project start_date, else task.createdAt, else estimate
             const startFromProject = project && project.start_date ? new Date(project.start_date) : null;
-            const start = startFromProject || (t.start_date ? new Date(t.start_date) : (end ? addDays(end, -7) : addDays(today, -3)));
+            const start = (t.start_date ? new Date(t.start_date) : (end ? addDays(end, -7) : addDays(today, -3)));
 
             // derive status from task.status and due date
             let status = "UNDERWAY";
@@ -55,6 +58,7 @@ const ProjectCalendar = ({ tasks = [], project }) => {
         const days = Math.max(1, differenceInCalendarDays(maxD, minD));
         return { timelineStart: minD, timelineEnd: maxD, totalDays: days };
     }, [rows]);
+
 
     // build month segments (each month will be displayed as 4 week-columns)
     const monthsAll = useMemo(() => {
@@ -145,7 +149,18 @@ const ProjectCalendar = ({ tasks = [], project }) => {
     // const [completedTasks, setCompletedTasks] = useState([]);
     const [completedCells, setCompletedCells] = useState([]);
     const [selectedColForDialog, setSelectedColForDialog] = useState(null);
+    const [selectedWeek, setSelectedWeek] = useState(null);
 
+    const getWeekIndexForDate = (selectedDate) => {
+        for (let i = 0; i < visibleColumns.length; i++) {
+            const col = visibleColumns[i];
+            if (selectedDate >= col.colStart && selectedDate < col.colEnd) {
+                return i;
+            }
+        }
+        if (selectedDate < visibleColumns[0].colStart) return 0;
+        return visibleColumns.length - 1;
+    };
 
     const renderRow = (row) => {
         // const isSelected = selectedTask?.name === row.name;
@@ -208,18 +223,15 @@ const ProjectCalendar = ({ tasks = [], project }) => {
                                         return [...prev, { task: row.name, col: i }];
                                     }
                                 });
+                                const weekIndex = getWeekIndexForDate(new Date());
+                                setSelectedWeek({ weekIndex });
+
                                 setSelectedTaskForDialog(row);
                                 setSelectedColForDialog(i);
+                                // const selectedColumn = visibleColumns[i];
                                 setIsDialogOpen(true);
                             }}
-                            // onClick={() => {
-                            //     if (!overlap) return;
-                            //     setSelectedCell((prev) =>
-                            //         prev?.task === row.name && prev?.col === i
-                            //             ? null
-                            //             : { task: row.name, col: i }
-                            //     );
-                            // }}
+                            
                         >
                             <div
                                 style={{
@@ -232,6 +244,7 @@ const ProjectCalendar = ({ tasks = [], project }) => {
                             />
                         </div>
                     );
+                    
                 })}
 
                 <div style={{ padding: '6px 8px' }} className="text-xs text-zinc-500 dark:text-zinc-400 text-right">
@@ -277,8 +290,8 @@ const ProjectCalendar = ({ tasks = [], project }) => {
                     <div className="flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-400">
                         <span className="w-3 h-3 rounded-full" style={{ background: statusColors.UNDERWAY }} /> Underway
                     </div>
-                    <div className="flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-400"> 30 Nov
-                    </div>
+                    {/* <div className="flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-400"> 30 Nov
+                    </div> */}
                 </div>
             </div>
 
@@ -448,11 +461,10 @@ const ProjectCalendar = ({ tasks = [], project }) => {
 
                     {/* garis vertikal due date */}
                     {(() => {
+                    const due = project?.end_date ? new Date(project.end_date) : null;
 
-                    const due = new Date(tasks.due_date);
+                    // const due = new Date(tasks.due_date);
                     // const due = new Date(project.end_date);
-                    // Pastikan due date masih dalam rentang timeline
-                    if (due < timelineStart || due > timelineEnd) return null;
 
                     // Hitung jarak dari awal timeline
                     const daysFromStart = differenceInCalendarDays(due, timelineStart);
@@ -482,16 +494,12 @@ const ProjectCalendar = ({ tasks = [], project }) => {
                 </div>
 
             </div>
-            {/* <AddFileDialog
-                showDialog={isDialogOpen}
-                setShowDialog={setIsDialogOpen}
-                taskId={selectedTaskForDialog?.id}
-            /> */}
             <AddFileDialog
                 showDialog={isDialogOpen}
                 setShowDialog={setIsDialogOpen}
                 taskId={selectedTaskForDialog?.id}
-                taskName={selectedTaskForDialog?.name}
+                getWeekIndexForDate={getWeekIndexForDate}
+                visibleColumns={visibleColumns}
                 onSuccess={() =>
                     setCompletedCells(prev => [
                         ...prev,

@@ -45,6 +45,16 @@ export default function AddFileDialog({ showDialog, setShowDialog, taskId, taskN
             dataToSend.append("tanggal", formData.tanggal);
             dataToSend.append("keterangan", formData.keterangan);
             dataToSend.append("taskId", taskId);
+            const weekIndex = getWeekIndexForDate(new Date(formData.tanggal), visibleColumns);
+
+            await api.post("/api/weekly-progress", {
+                taskId,
+                weekIndex,
+                date: formData.tanggal},
+            {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+
             if (formData.attachment) dataToSend.append("attachment", formData.attachment);
 
             const { data } = await api.post(`/api/evidences`, dataToSend, {
@@ -53,6 +63,16 @@ export default function AddFileDialog({ showDialog, setShowDialog, taskId, taskN
                     "Content-Type": "multipart/form-data",
                 },
             });
+
+            // await api.post(`/api/weekly-progress`, {
+            //     taskId,
+            //     progress: 100,
+            //     weekStart,
+            //     weekEnd,
+            // }, {
+            //     headers: { Authorization: `Bearer ${token}` }
+            // });
+
 
             toast.success(data.message || "Evidence added successfully");
 
