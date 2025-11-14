@@ -1,5 +1,6 @@
 import React, { useMemo, useRef, useState, useEffect } from "react";
 import { format, differenceInCalendarDays, addDays, startOfMonth, addMonths } from "date-fns";
+import AddFileDialog from "./AddFileDialog.jsx";
 
 // Status color map to match the sample image
 const statusColors = {
@@ -10,7 +11,7 @@ const statusColors = {
 };
 
 // Minimal Gantt-like chart component to replace calendar
-const ProjectCalendar = ({ tasks = [], project = null }) => {
+const ProjectCalendar = ({ tasks = [], project }) => {
     // Build rows from tasks: each task becomes a row
     const rows = useMemo(() => {
         if (!tasks || tasks.length === 0) return [];
@@ -19,10 +20,11 @@ const ProjectCalendar = ({ tasks = [], project = null }) => {
 
         return tasks.map((t) => {
             const title = t.title || `Task ${t.id}`;
-            const end = t.due_date ? new Date(t.due_date) : null;
+            const end = t.end_date ? new Date(t.end_date) : null;
+            // const due = t.due_date ? new Date(t.due_date) : null;
             // prefer project start_date, else task.createdAt, else estimate
             const startFromProject = project && project.start_date ? new Date(project.start_date) : null;
-            const start = startFromProject || (t.createdAt ? new Date(t.createdAt) : (end ? addDays(end, -7) : addDays(today, -3)));
+            const start = startFromProject || (t.start_date ? new Date(t.start_date) : (end ? addDays(end, -7) : addDays(today, -3)));
 
             // derive status from task.status and due date
             let status = "UNDERWAY";
@@ -30,14 +32,15 @@ const ProjectCalendar = ({ tasks = [], project = null }) => {
             else if (end && end < today) status = "OVERDUE";
             else if (end && end <= addDays(today, 7)) status = "LATE";
 
-            return { name: title, start, end: end || addDays(start, 1), status };
+            return { id: t.id, name: title, start, end: end || addDays(start, 1), status };
         }).slice(0, 50); // cap rows for performance
     }, [tasks, project]);
 
     // Compute timeline range
     const { timelineStart, timelineEnd, totalDays } = useMemo(() => {
         if (!rows || rows.length === 0) {
-            const s = new Date();
+            //const s = new Date();
+            const s = project?.start_date ? new Date(project.start_date) : new Date();
             return { timelineStart: s, timelineEnd: addDays(s, 7), totalDays: 7 };
         }
         let minD = rows[0].start || new Date();
@@ -73,16 +76,34 @@ const ProjectCalendar = ({ tasks = [], project = null }) => {
 
     // build column date ranges for the full timeline (all months * 4) then slice the visible window
     const columnsAll = useMemo(() => {
-        const allCols = Array.from({ length: monthsAll.length * 4 }).map((_, col) => {
-            const startOffset = Math.round((col * totalDays) / (monthsAll.length * 4));
-            const endOffset = Math.round(((col + 1) * totalDays) / (monthsAll.length * 4));
-            const colStart = addDays(timelineStart, startOffset);
-            const colEnd = addDays(timelineStart, endOffset);
-            return { colStart, colEnd };
+        const cols = [];
+        monthsAll.forEach((m) => {
+            const monthStart = m.monthStart;
+            const monthEnd = addMonths(monthStart, 1); // exclusive end of month
+            // jumlah hari pada bulan (differenceInCalendarDays monthEnd - monthStart)
+            const daysInMonth = Math.max(1, differenceInCalendarDays(monthEnd, monthStart));
+            const base = Math.floor(daysInMonth / 4);
+            const remainder = daysInMonth % 4;
+            // distribute remainder to the first segments so total days match the month
+            let offset = 0;
+            for (let seg = 0; seg < 4; seg++) {
+                // give one extra day to first remainder segments
+                const segLen = base + (seg < remainder ? 1 : 0);
+                const colStart = addDays(monthStart, offset);
+                const colEnd = addDays(colStart, segLen); // exclusive end
+                cols.push({ colStart, colEnd, month: format(monthStart, 'MMM yyyy'), segment: seg });
+                offset += segLen;
+            }
+            // safety: ensure last segment ends exactly at monthEnd
+            if (cols.length > 0) {
+                const last = cols[cols.length - 1];
+                if (differenceInCalendarDays(last.colEnd, monthEnd) !== 0) {
+                    last.colEnd = monthEnd;
+                }
+            }
         });
-        return allCols;
-    }, [timelineStart, totalDays, monthsAll.length]);
-
+        return cols;
+    }, [monthsAll]);
     const visibleColumns = columnsAll; // render all columns, scrolling will show viewport of 12 months
 
     // grid sizing (pixels) — adjust to change compactness
@@ -115,25 +136,130 @@ const ProjectCalendar = ({ tasks = [], project = null }) => {
         return () => window.removeEventListener('resize', resize);
     }, [leftWidth, rightWidth, monthsAll.length]);
 
-    // grid-based row renderer: returns grid cells in sequence (left label, N cells, right label)
+
+    // const [selectedTask, setSelectedTask] = useState(null);
+
+    const [selectedCell, setSelectedCell] = useState([]);
+    const [isDialogOpen, setIsDialogOpen] = useState(false);
+    const [selectedTaskForDialog, setSelectedTaskForDialog] = useState(null);
+    // const [completedTasks, setCompletedTasks] = useState([]);
+    const [completedCells, setCompletedCells] = useState([]);
+    const [selectedColForDialog, setSelectedColForDialog] = useState(null);
+
+
     const renderRow = (row) => {
-        const bg = statusColors[row.status] || statusColors.DEFAULT;
+        // const isSelected = selectedTask?.name === row.name;
+        // const bg = isSelected ? "#22c55e" : (statusColors[row.status] || statusColors.DEFAULT);
+
         return (
             <>
-                <div style={{ padding: '6px 8px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} className="text-sm text-zinc-700 dark:text-zinc-300">{row.name}</div>
+                <div
+                    style={{ padding: '6px 8px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', cursor: 'pointer' }}
+                    className="text-sm text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white"
+                    // onClick={() => setSelectedTask((prev) => prev?.name === row.name ? null : row)}
+                >
+                    {row.name}
+                </div>
                 {visibleColumns.map((c, i) => {
                     const overlap = (row.start < c.colEnd) && (row.end > c.colStart);
+
+                    // const isSelected =
+                    //     selectedCell?.task === row.name && selectedCell?.col === i;
+                    const isSelected = selectedCell.some(
+                        (sel) => sel.task === row.name && sel.col === i
+                    );
+
+                    // const bg = isSelected
+                    //     ? "#22c55e"
+                    //     : (overlap ? (statusColors[row.status] || statusColors.DEFAULT) : "transparent");
+
+                    // const isCompleted = completedTasks.includes(row.id);
+                    const isCompleted = completedCells.some(
+                        (cell) => cell.taskId === row.id && cell.col === i
+                    );
+
+                    const bg = isCompleted
+                    ? "#22c55e" 
+                    : isSelected
+                        ? "#86efac" 
+                        : (overlap ? (statusColors[row.status] || statusColors.DEFAULT) : "transparent");
+
                     return (
-                        <div key={`${row.name}-c-${i}`} style={{ width: computedCellSize, height: computedCellSize, borderRight: '1px solid rgba(0,0,0,0.06)' }}>
-                            <div style={{ width: '100%', height: '100%', background: overlap ? bg : 'transparent', borderRadius: 2 }} />
+                        <div
+                            key={`${row.name}-c-${i}`}
+                            style={{
+                                width: computedCellSize,
+                                height: computedCellSize,
+                                borderRight: '1px solid rgba(0,0,0,0.06)',
+                                cursor: overlap ? 'pointer' : 'default',
+                            }}
+                            onClick={() => {
+                                if (!overlap) return;
+
+                                setSelectedCell((prev) => {
+                                    const exists = prev.some(
+                                        (sel) => sel.task === row.name && sel.col === i
+                                    );
+                                    if (exists) {
+                                        return prev.filter(
+                                            (sel) => !(sel.task === row.name && sel.col === i)
+                                        );
+                                    } else {
+                                        return [...prev, { task: row.name, col: i }];
+                                    }
+                                });
+                                setSelectedTaskForDialog(row);
+                                setSelectedColForDialog(i);
+                                setIsDialogOpen(true);
+                            }}
+                            // onClick={() => {
+                            //     if (!overlap) return;
+                            //     setSelectedCell((prev) =>
+                            //         prev?.task === row.name && prev?.col === i
+                            //             ? null
+                            //             : { task: row.name, col: i }
+                            //     );
+                            // }}
+                        >
+                            <div
+                                style={{
+                                    width: '100%',
+                                    height: '100%',
+                                    background: bg,
+                                    borderRadius: 2,
+                                    transition: "background 0.2s ease",
+                                }}
+                            />
                         </div>
                     );
                 })}
-                <div style={{ padding: '6px 8px' }} className="text-xs text-zinc-500 dark:text-zinc-400 text-right">{format(row.start, 'MMM d')}</div>
+
+                <div style={{ padding: '6px 8px' }} className="text-xs text-zinc-500 dark:text-zinc-400 text-right">
+                    {format(row.end, 'MMM d')}
+                </div>
             </>
         );
     };
 
+    // grid-based row renderer: returns grid cells in sequence (left label, N cells, right label)
+    // const renderRow = (row) => {
+    //     const bg = statusColors[row.status] || statusColors.DEFAULT;
+    //     return (
+    //         <>
+    //             <div style={{ padding: '6px 8px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} className="text-sm text-zinc-700 dark:text-zinc-300">{row.name}</div>
+    //             {visibleColumns.map((c, i) => {
+    //                 const overlap = (row.start < c.colEnd) && (row.end > c.colStart);
+    //                 return (
+    //                     <div key={`${row.name}-c-${i}`} style={{ width: computedCellSize, height: computedCellSize, borderRight: '1px solid rgba(0,0,0,0.06)' }}>
+    //                         <div style={{ width: '100%', height: '100%', background: overlap ? bg : 'transparent', borderRadius: 2 }} />
+    //                     </div>
+    //                 );
+    //             })}
+    //             <div style={{ padding: '6px 8px' }} className="text-xs text-zinc-500 dark:text-zinc-400 text-right">{format(row.end, 'MMM d')}</div>
+    //         </>
+    //     );
+    // };
+    
     return (
         <div className="not-dark:bg-white dark:bg-gradient-to-br dark:from-zinc-800/70 dark:to-zinc-900/50 border border-zinc-300 dark:border-zinc-800 rounded-lg p-4">
             <div className="flex items-center justify-between mb-4">
@@ -150,6 +276,8 @@ const ProjectCalendar = ({ tasks = [], project = null }) => {
                     </div>
                     <div className="flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-400">
                         <span className="w-3 h-3 rounded-full" style={{ background: statusColors.UNDERWAY }} /> Underway
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-400"> 30 Nov
                     </div>
                 </div>
             </div>
@@ -194,32 +322,88 @@ const ProjectCalendar = ({ tasks = [], project = null }) => {
                 }}
                 onTouchEnd={() => { isDraggingRef.current = false; }}
             >
-                <div ref={containerRef} style={{ minWidth: leftWidth + (totalColumns * computedCellSize) + rightWidth }}>
-                    {/* Grid container: left label | repeated columns | right label */}
-                    <div style={{ display: 'grid', gridTemplateColumns: `${leftWidth}px repeat(${totalColumns}, ${computedCellSize}px) ${rightWidth}px`, alignItems: 'center', gap: 0 }}>
-                        {/* months header (each spans 4 columns) */}
+                
+                <div
+                    ref={containerRef}
+                    className="relative"
+                    style={{
+                        minWidth: leftWidth + (totalColumns * computedCellSize) + rightWidth,
+                    }}
+                >
+                    {/* Timeline grid */}
+                    <div
+                        style={{
+                            display: 'grid',
+                            gridTemplateColumns: `${leftWidth}px repeat(${totalColumns}, ${computedCellSize}px) ${rightWidth}px`,
+                            alignItems: 'center',
+                            gap: 0,
+                            position: 'relative',
+                            zIndex: 10,
+                        }}
+                    >
+                        {/* months header */}
                         <div />
                         {monthsAll.map((m, mi) => (
-                            <div key={mi} style={{ gridColumn: `span 4`, textAlign: 'center', padding: '6px 4px', fontWeight: 600 }} className="text-zinc-700 dark:text-zinc-300">{format(m.monthStart, 'MMM yyyy')}</div>
+                            <div
+                                key={mi}
+                                style={{
+                                    gridColumn: `span 4`,
+                                    textAlign: 'center',
+                                    padding: '6px 4px',
+                                    fontWeight: 600,
+                                }}
+                                className="text-zinc-700 dark:text-zinc-300"
+                            >
+                                {format(m.monthStart, 'MMM yyyy')}
+                            </div>
                         ))}
                         <div />
 
                         {/* week labels row */}
                         <div />
-                        {monthsAll.map((m, mi) => (
+                        {monthsAll.map((m, mi) =>
                             ['I', 'II', 'III', 'IV'].map((wk, wi) => (
-                                <div key={`${mi}-${wi}`} style={{ width: computedCellSize, height: computedCellSize, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11 }} className="text-zinc-500 dark:text-zinc-400">{wk}</div>
+                                <div
+                                    key={`${mi}-${wi}`}
+                                    style={{
+                                        width: computedCellSize,
+                                        height: computedCellSize,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        fontSize: 11,
+                                    }}
+                                    className="text-zinc-500 dark:text-zinc-400"
+                                >
+                                    {wk}
+                                </div>
                             ))
-                        ))}
+                        )}
                         <div />
 
-                        {/* rows area: render each row as sequential grid children */}
+                        {/* rows area */}
                         {rows.length === 0 ? (
                             <>
                                 <div />
-                                {Array.from({ length: totalColumns }).map((_, i) => <div key={i} style={{ width: computedCellSize, height: computedCellSize, borderRight: '1px solid rgba(0,0,0,0.06)' }} />)}
+                                {Array.from({ length: totalColumns }).map((_, i) => (
+                                    <div
+                                        key={i}
+                                        style={{
+                                            width: computedCellSize,
+                                            height: computedCellSize,
+                                            borderRight: '1px solid rgba(0,0,0,0.06)',
+                                        }}
+                                    />
+                                ))}
                                 <div />
-                                <div style={{ gridColumn: `1 / ${totalColumns + 3}` }} className="py-8 text-center text-zinc-600 dark:text-zinc-400">No tasks available to build the timeline.</div>
+                                <div
+                                    style={{
+                                        gridColumn: `1 / ${totalColumns + 3}`,
+                                    }}
+                                    className="py-8 text-center text-zinc-600 dark:text-zinc-400"
+                                >
+                                    No tasks available to build the timeline.
+                                </div>
                             </>
                         ) : (
                             rows.map((r, idx) => (
@@ -229,9 +413,94 @@ const ProjectCalendar = ({ tasks = [], project = null }) => {
                             ))
                         )}
                     </div>
+
+                    {/* garis vertikal today */}
+                    {(() => {
+                    const today = new Date();
+                    if (today >= timelineStart && today <= timelineEnd) {
+                        const daysFromStart = differenceInCalendarDays(today, timelineStart);
+                        const weekIndex = Math.floor(daysFromStart / 7); // minggu ke-berapa
+                        const offsetInWeek = (daysFromStart % 7) / 7; // posisi relatif dalam minggu
+
+                        // total minggu dalam seluruh timeline
+                        const totalWeeks = totalColumns; // 4 kolom per bulan
+                        const left =
+                        leftWidth +
+                        (weekIndex + offsetInWeek) * computedCellSize; // pixel position dari kiri label
+
+                        return (
+                        <div
+                            className="absolute top-[68px] bottom-[0px] border-l-2 border-blue-400 z-20"
+                            style={{
+                            left: `${left}px`,
+                            pointerEvents: "none",
+                            }}
+                        >
+                            <div className="absolute -top-5 -left-6 bg-blue-500 text-white text-xs px-2 py-0.5 rounded">
+                            {/* {format(today, "dd MMM")} */}
+                            today
+                            </div>
+                        </div>
+                        );
+                    }
+                    return null;
+                    })()}
+
+                    {/* garis vertikal due date */}
+                    {(() => {
+
+                    const due = new Date(tasks.due_date);
+                    // const due = new Date(project.end_date);
+                    // Pastikan due date masih dalam rentang timeline
+                    if (due < timelineStart || due > timelineEnd) return null;
+
+                    // Hitung jarak dari awal timeline
+                    const daysFromStart = differenceInCalendarDays(due, timelineStart);
+                    const weekIndex = Math.floor(daysFromStart / 7);
+                    const offsetInWeek = (daysFromStart % 7) / 7;
+
+                    // Hitung posisi garis secara pixel
+                    const left =
+                        leftWidth + (weekIndex + offsetInWeek) * computedCellSize;
+
+                    return (
+                        <div
+                        className="absolute top-[68px] bottom-[0px] border-l-2 border-red-500 z-20"
+                        style={{
+                            left: `${left}px`,
+                            pointerEvents: "none",
+                        }}
+                        >
+                        <div className="absolute -top-5 left-1/2 -translate-x-1/2 bg-red-500 text-white text-xs px-2 py-0.5 rounded">
+                            {/* {format(due, "dd MMM")} */}
+                            due
+                        </div>
+                        </div>
+                    );
+                    })()}
+
                 </div>
+
             </div>
+            {/* <AddFileDialog
+                showDialog={isDialogOpen}
+                setShowDialog={setIsDialogOpen}
+                taskId={selectedTaskForDialog?.id}
+            /> */}
+            <AddFileDialog
+                showDialog={isDialogOpen}
+                setShowDialog={setIsDialogOpen}
+                taskId={selectedTaskForDialog?.id}
+                onSuccess={() =>
+                    setCompletedCells(prev => [
+                        ...prev,
+                        { taskId: selectedTaskForDialog.id, col: selectedColForDialog }
+                    ])
+                }
+            />
+
         </div>
+        
     );
 };
 
