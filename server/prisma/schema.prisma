@@ -136,6 +136,7 @@ model Task {
     assignee User      @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: Cascade)
     comments Comment[]
     evidences Evidence[]
+    weekprogress WeeklyProgress[]
 }
 
 model Comment {
@@ -163,3 +164,14 @@ model Evidence {
 }
 
 
+model WeeklyProgress {
+  id        String   @id @default(uuid())
+  taskId    String
+  weekIndex Int       
+  date      DateTime  
+  createdAt DateTime @default(now())
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, weekIndex]) 
+}

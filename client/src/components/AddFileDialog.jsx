@@ -4,7 +4,7 @@ import toast from "react-hot-toast";
 import { useAuth } from "@clerk/clerk-react";
 import api from "../configs/api";
 
-export default function AddFileDialog({ showDialog, setShowDialog, taskId, onSuccess }) {
+export default function AddFileDialog({ showDialog, setShowDialog, taskId, getWeekIndexForDate, visibleColumns, onSuccess }) {
     const { getToken } = useAuth();
     const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -28,6 +28,16 @@ export default function AddFileDialog({ showDialog, setShowDialog, taskId, onSuc
             dataToSend.append("tanggal", formData.tanggal);
             dataToSend.append("keterangan", formData.keterangan);
             dataToSend.append("taskId", taskId);
+            const weekIndex = getWeekIndexForDate(new Date(formData.tanggal), visibleColumns);
+
+            await api.post("/api/weekly-progress", {
+                taskId,
+                weekIndex,
+                date: formData.tanggal},
+            {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+
             if (formData.attachment) dataToSend.append("attachment", formData.attachment);
 
             const { data } = await api.post(`/api/evidences`, dataToSend, {
@@ -36,6 +46,16 @@ export default function AddFileDialog({ showDialog, setShowDialog, taskId, onSuc
                 "Content-Type": "multipart/form-data",
             },
             });
+
+            // await api.post(`/api/weekly-progress`, {
+            //     taskId,
+            //     progress: 100,
+            //     weekStart,
+            //     weekEnd,
+            // }, {
+            //     headers: { Authorization: `Bearer ${token}` }
+            // });
+
 
             toast.success(data.message || "Evidence added successfully");
 
