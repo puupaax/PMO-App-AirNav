@@ -46,6 +46,33 @@ export const addEvidence = async (req, res) => {
 };
 
 
+// GET task evidence
+export const getTaskEvidences = async (req, res) => {
+  try {
+    const { taskId } = req.params;
+
+    const evidences = await prisma.evidence.findMany({
+      where: { taskId },
+      include: {
+        user: {
+          select: { id: true, name: true, email: true }
+        },
+        task: {
+          select: { id: true, title: true }
+        }
+      }
+    });
+
+    res.json(evidences);
+  } catch (err) {
+    console.log(err);
+    res.status(500).json({ message: "Failed to fetch evidences" });
+  }
+};
+
+
+
+
 // Get evidences
 // export const getTaskEvidences = async (req, res) => {
 //     try {

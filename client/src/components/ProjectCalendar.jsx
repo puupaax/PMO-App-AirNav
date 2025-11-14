@@ -451,7 +451,7 @@ const ProjectCalendar = ({ tasks = [], project }) => {
                         >
                             <div className="absolute -top-5 -left-6 bg-blue-500 text-white text-xs px-2 py-0.5 rounded">
                             {/* {format(today, "dd MMM")} */}
-                            today
+                            today {/*{format(today, "dd/MM/yy")} */}
                             </div>
                         </div>
                         );
@@ -506,6 +506,7 @@ const ProjectCalendar = ({ tasks = [], project }) => {
                         { taskId: selectedTaskForDialog.id, col: selectedColForDialog }
                     ])
                 }
+                
             />
 
         </div>
