@@ -56,6 +56,7 @@ model User {
     comments        Comment[]
     ownedWorkspaces Workspace[]
     ProjectMember   ProjectMember[]
+    evidences       Evidence[]
 }
 
 model Workspace {
@@ -146,3 +147,18 @@ model Comment {
     user User @relation(fields: [userId], references: [id], onDelete: Cascade)
     task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
 }
+
+model Evidence {
+    id        String   @id @default(uuid())
+    image_url   String   @default("")
+    content   String
+    userId    String
+    taskId    String
+    date      DateTime
+    createdAt DateTime @default(now())
+
+    user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+    task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+}
+
+

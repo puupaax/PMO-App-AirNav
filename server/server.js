@@ -10,6 +10,7 @@ import { protect } from './middlewares/authMiddleware.js';
 import projectRouter from './routes/projectRoutes.js';
 import taskRouter from './routes/taskRoutes.js';
 import commentRouter from './routes/commentRoutes.js';
+import evidenceRouter from './routes/evidenceRoute.js';
 
 if (!process.env.CLERK_PUBLISHABLE_KEY) {
     throw new Error('Missing Clerk Publishable Key');
@@ -22,6 +23,7 @@ app.use(cors());
 app.use(clerkMiddleware({
     publishableKey: process.env.CLERK_PUBLISHABLE_KEY
 }));
+app.use("/uploads", express.static("uploads"));
 
 
 app.get('/', (req, res)=> res.send('Server is live'));
@@ -32,6 +34,7 @@ app.use('/api/workspaces', protect, workspaceRouter)
 app.use("/api/projects", protect, projectRouter)
 app.use("/api/tasks", protect, taskRouter)
 app.use("/api/comments", protect, commentRouter)
+app.use("/api/evidences", protect, evidenceRouter)
 
 
 

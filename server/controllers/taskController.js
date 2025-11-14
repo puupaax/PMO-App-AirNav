@@ -6,7 +6,7 @@ import { inngest } from "../inngest/index.js";
 export const createTask = async (req, res) => {
     try {
         const {userId} = await req.auth();
-        const {projectId, title, description, type, status, priority, assigneeId, due_date} = req.body;
+        const {projectId, title, description, type, status, priority, assigneeId, due_date, start_date, end_date} = req.body;
 
         const origin = req.get('origin')
 
@@ -19,7 +19,7 @@ export const createTask = async (req, res) => {
         if(!project){
             return res.status(404).json({ message: "Project not found"});
         } else if (project.team_lead !== userId) {
-            return res.status(403).json({ emssage: "You dont have admin privileges for this project"})
+            return res.status(403).json({ message: "You dont have admin privileges for this project"})
         } else if (assigneeId && !project.members.find((member)=>member.user.id === assigneeId)){
             return res.status(403).json({ message: "assignee is not a member of the project / workspace"})
         }
@@ -33,7 +33,9 @@ export const createTask = async (req, res) => {
                 assigneeId,
                 status,
                 type,
-                due_date: new Date(due_date)
+                due_date: new Date(due_date),
+                start_date: new Date(start_date),
+                end_date: new Date(end_date),
             }
         })
 
