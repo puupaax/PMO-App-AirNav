@@ -500,6 +500,7 @@ const ProjectCalendar = ({ tasks = [], project }) => {
                 taskId={selectedTaskForDialog?.id}
                 getWeekIndexForDate={getWeekIndexForDate}
                 visibleColumns={visibleColumns}
+                taskName={selectedTaskForDialog?.name}
                 onSuccess={() =>
                     setCompletedCells(prev => [
                         ...prev,

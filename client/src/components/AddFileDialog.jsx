@@ -4,7 +4,7 @@ import toast from "react-hot-toast";
 import { useAuth } from "@clerk/clerk-react";
 import api from "../configs/api";
 
-export default function AddFileDialog({ showDialog, setShowDialog, taskId, taskName, onSuccess }) {
+export default function AddFileDialog({ showDialog, setShowDialog, taskId, getWeekIndexForDate, visibleColumns, taskName, onSuccess }) {
     const { getToken } = useAuth();
 
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -18,22 +18,32 @@ export default function AddFileDialog({ showDialog, setShowDialog, taskId, taskN
 
     // ⬇️ Fetch evidence saat dialog dibuka
     useEffect(() => {
-        if (!showDialog) return;
+        if (!showDialog || !formData.tanggal) return;
         fetchEvidences();
-    }, [showDialog]);
+    }, [showDialog, formData.tanggal]);
+
+
 
     const fetchEvidences = async () => {
         try {
             const token = await getToken();
-            const { data } = await api.get(`/api/evidences/${taskId}`, {
+
+            // Pastikan tanggal sudah dipilih
+            if (!formData.tanggal) return;
+
+            const weekIndex = getWeekIndexForDate(new Date(formData.tanggal), visibleColumns);
+
+            const { data } = await api.get(`/api/evidences/${taskId}/${weekIndex}`, {
                 headers: { Authorization: `Bearer ${token}` },
             });
+
             setEvidences(data);
 
         } catch (error) {
             console.error(error);
         }
     };
+
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -46,7 +56,7 @@ export default function AddFileDialog({ showDialog, setShowDialog, taskId, taskN
             dataToSend.append("keterangan", formData.keterangan);
             dataToSend.append("taskId", taskId);
             const weekIndex = getWeekIndexForDate(new Date(formData.tanggal), visibleColumns);
-
+            console.log("weekIndexEvidence:", weekIndex);
             await api.post("/api/weekly-progress", {
                 taskId,
                 weekIndex,
@@ -54,6 +64,8 @@ export default function AddFileDialog({ showDialog, setShowDialog, taskId, taskN
             {
                 headers: { Authorization: `Bearer ${token}` }
             });
+
+            dataToSend.append("weekIndex", weekIndex);
 
             if (formData.attachment) dataToSend.append("attachment", formData.attachment);
 

@@ -1,44 +1,72 @@
 import prisma from "../config/prisma.js";
 
-// Add evidence
+
+// ADD OR UPDATE EVIDENCE (same logic as weeklyProgress)
 export const addEvidence = async (req, res) => {
     try {
         const { userId } = await req.auth();
-        const { keterangan, tanggal, taskId } = req.body;
+        const { keterangan, tanggal, taskId, weekIndex } = req.body;
 
-        const file = req.file; // dari multer
+        if (!taskId || weekIndex === undefined || !tanggal) {
+            return res.status(400).json({
+                message: "taskId, weekIndex, and tanggal are required",
+            });
+        }
+
+        const file = req.file;
         const image_url = file ? `/uploads/${file.filename}` : "";
 
+        // 1. Check task
         const task = await prisma.task.findUnique({
-        where: { id: taskId },
+            where: { id: taskId },
         });
 
         if (!task) {
-        return res.status(404).json({ message: "Task not found" });
+            return res.status(404).json({ message: "Task not found" });
         }
 
+        // 2. Check project membership
         const project = await prisma.project.findUnique({
-        where: { id: task.projectId },
-        include: { members: true },
+            where: { id: task.projectId },
+            include: { members: true },
         });
 
-        const member = project?.members.find((m) => m.userId === userId);
-        if (!member) {
-        return res.status(403).json({ message: "You are not a member of this project" });
+        const isMember = project.members.some((m) => m.userId === userId);
+
+        if (!isMember) {
+            return res.status(403).json({
+                message: "You are not a member of this project",
+            });
         }
 
-        const evidence = await prisma.evidence.create({
-        data: {
-            taskId,
-            userId,
-            content: keterangan,
-            image_url,
-            date: tanggal ? new Date(tanggal) : new Date(),
-        },
-        include: { user: true },
+        // 3. Upsert evidence (UPDATE jika week sudah ada, CREATE jika belum)
+        const evidence = await prisma.evidence.upsert({
+            where: {
+                taskId_weekIndex: {
+                    taskId,
+                    weekIndex: Number(weekIndex),
+                },
+            },
+            update: {
+                content: keterangan,
+                image_url,
+                date: new Date(tanggal),
+            },
+            create: {
+                taskId,
+                userId,
+                content: keterangan,
+                image_url,
+                weekIndex: Number(weekIndex),
+                date: new Date(tanggal),
+            },
+            include: { user: true },
         });
 
-        res.json({ message: "Evidence added successfully", evidence });
+        res.json({
+            message: "Evidence saved successfully",
+            evidence,
+        });
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: error.code || error.message });
@@ -49,23 +77,22 @@ export const addEvidence = async (req, res) => {
 // GET task evidence
 export const getTaskEvidences = async (req, res) => {
   try {
-    const { taskId } = req.params;
+    const { taskId, weekIndex } = req.params;
 
     const evidences = await prisma.evidence.findMany({
-      where: { taskId },
+      where: {
+        taskId,
+        weekIndex: Number(weekIndex)
+      },
       include: {
-        user: {
-          select: { id: true, name: true, email: true }
-        },
-        task: {
-          select: { id: true, title: true }
-        }
-      }
+        user: { select: { id: true, name: true, email: true } }
+      },
+      orderBy: { date: "asc" }
     });
 
     res.json(evidences);
-  } catch (err) {
-    console.log(err);
+  } catch (error) {
+    console.error(error);
     res.status(500).json({ message: "Failed to fetch evidences" });
   }
 };
