@@ -3,13 +3,18 @@ import { Paperclip, Calendar } from "lucide-react";
 import toast from "react-hot-toast";
 import { useAuth } from "@clerk/clerk-react";
 import api from "../configs/api";
+import { BeatLoader } from "react-spinners";
 
-export default function AddFileDialog({ showDialog, setShowDialog, taskId, getWeekIndexForDate, visibleColumns, taskName, onSuccess }) {
+
+export default function AddFileDialog({ showDialog, setShowDialog, taskId, getWeekIndexForDate, visibleColumns, taskName, selectedWeekIndex, weekIndexOnClick, onSuccess }) {
     const { getToken } = useAuth();
 
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [evidences, setEvidences] = useState([]);
+    const [loading, setLoading] = useState(false);
 
+
+    
     const [formData, setFormData] = useState({
         tanggal: "",
         keterangan: "",
@@ -18,29 +23,27 @@ export default function AddFileDialog({ showDialog, setShowDialog, taskId, getWe
 
     // ⬇️ Fetch evidence saat dialog dibuka
     useEffect(() => {
-        if (!showDialog || !formData.tanggal) return;
-        fetchEvidences();
-    }, [showDialog, formData.tanggal]);
+        if (!showDialog || weekIndexOnClick === null) return;
+        fetchEvidences(weekIndexOnClick);
+    }, [showDialog, weekIndexOnClick]);
 
 
-
-    const fetchEvidences = async () => {
+    const fetchEvidences = async (weekIndex) => {
         try {
+            if (weekIndex == null) return; // jangan fetch kalau undefined/null
+
+            setLoading(true);
+
             const token = await getToken();
-
-            // Pastikan tanggal sudah dipilih
-            if (!formData.tanggal) return;
-
-            const weekIndex = getWeekIndexForDate(new Date(formData.tanggal), visibleColumns);
-
             const { data } = await api.get(`/api/evidences/${taskId}/${weekIndex}`, {
                 headers: { Authorization: `Bearer ${token}` },
             });
 
             setEvidences(data);
-
         } catch (error) {
             console.error(error);
+        }finally {
+            setLoading(false);
         }
     };
 
@@ -52,11 +55,13 @@ export default function AddFileDialog({ showDialog, setShowDialog, taskId, getWe
         try {
             const token = await getToken();
             const dataToSend = new FormData();
+            //const week = selectedWeekIndex;
             dataToSend.append("tanggal", formData.tanggal);
             dataToSend.append("keterangan", formData.keterangan);
             dataToSend.append("taskId", taskId);
             const weekIndex = getWeekIndexForDate(new Date(formData.tanggal), visibleColumns);
             console.log("weekIndexEvidence:", weekIndex);
+            console.log("weekIndexEvidence2:", selectedWeekIndex);
             await api.post("/api/weekly-progress", {
                 taskId,
                 weekIndex,
@@ -88,7 +93,7 @@ export default function AddFileDialog({ showDialog, setShowDialog, taskId, getWe
 
             toast.success(data.message || "Evidence added successfully");
 
-            fetchEvidences(); // ⬅️ refresh list setelah upload
+            fetchEvidences(weekIndex); // ⬅️ refresh list setelah upload
 
             setFormData({ tanggal: "", keterangan: "", attachment: null });
         } catch (error) {
@@ -102,7 +107,7 @@ export default function AddFileDialog({ showDialog, setShowDialog, taskId, getWe
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 dark:bg-black/60 backdrop-blur" onClick={() => setShowDialog(false)}>
             <div className="bg-white dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-800 rounded-lg shadow-lg w-full max-w-md p-6 text-zinc-900 dark:text-white" onClick={(e) => e.stopPropagation()}>
 
-                <h2 className="text-xl font-bold mb-4">Attach Evidence <span className="text-blue-500">{taskName}</span></h2>
+                <h2 className="text-xl font-bold mb-4">Tambah Evidence <span className="text-blue-500">{taskName} </span>minggu ke-<span>{weekIndexOnClick}</span></h2>
 
                 {/* FORM */}
                 <form onSubmit={handleSubmit} className="space-y-4">
@@ -167,18 +172,34 @@ export default function AddFileDialog({ showDialog, setShowDialog, taskId, getWe
                 {/* EVIDENCE LIST → berada di bawah form */}
                 <div>
                     <h3 className="font-semibold mb-2">
-                        Evidences pada task <span className="text-blue-500">{taskName}</span>
+                        Evidences <span className="text-blue-500">{taskName} </span>
+                        minggu ke-<span>{weekIndexOnClick}</span>
                     </h3>
-
+                    
                     {evidences.length === 0 ? (
                         <p className="text-sm text-zinc-500">Belum ada evidence.</p>
                     ) : (
                         <div className="space-y-3 max-h-60 overflow-y-auto pr-2">
                             {evidences.map((ev) => (
                                 <div key={ev.id} className="p-3 border rounded dark:border-zinc-700">
-                                    <p className="text-sm font-medium">{ev.user?.name}</p>
-                                    <p className="text-xs text-zinc-400">{new Date(ev.date).toLocaleDateString()}</p>
-                                    <p className="text-sm mt-1">{ev.content}</p>
+                                    <p className="text-sm font-medium">Diupload Oleh: {ev.user?.name}</p>
+                                    <p className="text-xs text-zinc-400">
+                                        Evidence tanggal: {new Date(ev.date).toLocaleDateString("id-ID", {
+                                            day: "numeric",
+                                            month: "long",
+                                            year: "numeric",
+                                        })}
+                                    </p>
+
+                                    <p className="text-xs text-zinc-400">
+                                        Diupload pada: {new Date(ev.createdAt).toLocaleDateString("id-ID", {
+                                            day: "numeric",
+                                            month: "long",
+                                            year: "numeric",
+                                        })}
+                                    </p>
+                                    
+                                    <p className="text-sm mt-1">Keterangan: {ev.content}</p>
 
                                     {ev.image_url && (
                                         <a
@@ -189,6 +210,7 @@ export default function AddFileDialog({ showDialog, setShowDialog, taskId, getWe
                                             Lihat File
                                         </a>
                                     )}
+                                    
                                 </div>
                             ))}
                         </div>
