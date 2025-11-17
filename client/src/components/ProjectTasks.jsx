@@ -7,6 +7,8 @@ import { deleteTask, updateTask } from "../features/workspaceSlice";
 import { Bug, CalendarIcon, GitCommit, MessageSquare, Square, Trash, XIcon, Zap } from "lucide-react";
 import { useAuth } from "@clerk/clerk-react";
 import api from "../configs/api";
+import { differenceInCalendarDays } from "date-fns";
+
 
 const typeIcons = {
     BUG: { icon: Bug, color: "text-red-600 dark:text-red-400" },
@@ -167,7 +169,10 @@ const ProjectTasks = ({ tasks }) => {
                                     <th className="px-4 py-3">Priority</th>
                                     <th className="px-4 py-3">Status</th>
                                     <th className="px-4 py-3">Assignee</th>
+                                    <th className="px-4 py-3">Start Date</th>
+                                    <th className="px-4 py-3">End Date</th>
                                     <th className="px-4 py-3">Due Date</th>
+                                    <th className="px-4 py-3">Lainnya</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -209,9 +214,39 @@ const ProjectTasks = ({ tasks }) => {
                                                 <td className="px-4 py-2">
                                                     <div className="flex items-center gap-1 text-zinc-600 dark:text-zinc-400">
                                                         <CalendarIcon className="size-4" />
+                                                        {format(new Date(task.start_date), "dd MMMM")}
+                                                    </div>
+                                                </td>
+                                                <td className="px-4 py-2">
+                                                    <div className="flex items-center gap-1 text-zinc-600 dark:text-zinc-400">
+                                                        <CalendarIcon className="size-4" />
+                                                        {format(new Date(task.end_date), "dd MMMM")}
+                                                    </div>
+                                                </td>
+                                                <td className="px-4 py-2">
+                                                    <div className="flex items-center gap-1 text-zinc-600 dark:text-zinc-400">
+                                                        <CalendarIcon className="size-4" />
                                                         {format(new Date(task.due_date), "dd MMMM")}
                                                     </div>
                                                 </td>
+                                                <td className="px-4 py-2">
+                                                    <div className="flex flex-col">
+                                                        {/* Warning Mendekati Deadline */}
+                                                        {(() => {
+                                                            const daysLeft = differenceInCalendarDays(
+                                                                new Date(task.due_date),
+                                                                new Date()
+                                                            );
+
+                                                            return daysLeft <= 3 && daysLeft >= 0 ? (
+                                                                <span className="text-red-500 text-xs font-semibold animate-flash">
+                                                                    ⚠ Mendekati Deadline
+                                                                </span>
+                                                            ) : null;
+                                                        })()}
+                                                    </div>
+                                                </td>
+
                                             </tr>
                                         );
                                     })

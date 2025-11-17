@@ -61,6 +61,10 @@ export default function CreateTaskDialog({ showCreateTask, setShowCreateTask, pr
 
     };
 
+    const projectStart = project?.start_date?.split("T")[0] || "";
+    const projectEnd = project?.end_date?.split("T")[0] || "";
+
+
     return showCreateTask ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 dark:bg-black/60 backdrop-blur">
             <div className="bg-white dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-800 rounded-lg shadow-lg w-full max-w-md p-6 text-zinc-900 dark:text-white">
@@ -131,11 +135,25 @@ export default function CreateTaskDialog({ showCreateTask, setShowCreateTask, pr
                     <div className="grid grid-cols-2 gap-4">
                         <div>
                             <label className="block text-sm mb-1">Start Date</label>
-                            <input type="date" value={formData.start_date} onChange={(e) => setFormData({ ...formData, start_date: e.target.value })} className="w-full px-3 py-2 rounded dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 mt-1 text-zinc-900 dark:text-zinc-200 text-sm" />
+                            <input 
+                                type="date" 
+                                value={formData.start_date} 
+                                min={projectStart}
+                                max={projectEnd}
+                                onChange={(e) => setFormData({ ...formData, start_date: e.target.value })} 
+                                className="w-full px-3 py-2 rounded dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 mt-1 text-zinc-900 dark:text-zinc-200 text-sm" 
+                            />
                         </div>
                         <div>
                             <label className="block text-sm mb-1">End Date</label>
-                            <input type="date" value={formData.end_date} onChange={(e) => setFormData({ ...formData, end_date: e.target.value })} min={formData.start_date && new Date(formData.start_date).toISOString().split('T')[0]} className="w-full px-3 py-2 rounded dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 mt-1 text-zinc-900 dark:text-zinc-200 text-sm" />
+                            <input 
+                                type="date" 
+                                value={formData.end_date} 
+                                onChange={(e) => setFormData({ ...formData, end_date: e.target.value })} 
+                                min={formData.start_date && new Date(formData.start_date).toISOString().split('T')[0]} 
+                                max={projectEnd}
+                                className="w-full px-3 py-2 rounded dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 mt-1 text-zinc-900 dark:text-zinc-200 text-sm" 
+                            />
                         </div>
                     </div>
 
@@ -145,7 +163,14 @@ export default function CreateTaskDialog({ showCreateTask, setShowCreateTask, pr
                         <label className="text-sm font-medium">Due Date</label>
                         <div className="flex items-center gap-2">
                             <CalendarIcon className="size-5 text-zinc-500 dark:text-zinc-400" />
-                            <input type="date" value={formData.due_date} onChange={(e) => setFormData({ ...formData, due_date: e.target.value })} min={new Date().toISOString().split('T')[0]} className="w-full rounded dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 px-3 py-2 text-zinc-900 dark:text-zinc-200 text-sm mt-1" />
+                            <input 
+                                type="date" 
+                                value={formData.due_date} 
+                                onChange={(e) => setFormData({ ...formData, due_date: e.target.value })} 
+                                min={new Date().toISOString().split('T')[0]} 
+                                max={projectEnd}
+                                className="w-full rounded dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 px-3 py-2 text-zinc-900 dark:text-zinc-200 text-sm mt-1" 
+                            />
                         </div>
                         {formData.due_date && (
                             <p className="text-xs text-zinc-500 dark:text-zinc-400">
