@@ -154,11 +154,6 @@ const ProjectCalendar = ({ tasks = [], project }) => {
     const [selectedWeek, setSelectedWeek] = useState(null);
     const [selectedWeekIndex, setSelectedWeekIndex] = useState(null);
 
-    // const getWeekIndexFromColumn = (colIndex) => {
-    //     return colIndex; // week index = index kolom
-    // };
-
-    const [weekpro, setWeekpro] = useState([]);
     const [weekproMap, setWeekproMap] = useState({});
 
 
@@ -172,9 +167,10 @@ const ProjectCalendar = ({ tasks = [], project }) => {
             });
 
             setWeekproMap(prev => ({
-                        ...prev,
-                        [taskId]: data
+                ...prev,
+                [taskId]: Array.isArray(data.weeklyProgress) ? data.weeklyProgress : [],
             }));
+
 
             console.log("WEEKPRO DATA =", data)
 
@@ -190,13 +186,15 @@ const ProjectCalendar = ({ tasks = [], project }) => {
             if (t.id) fetchWeekpro(t.id);
         });
     }, [tasks]);
+    
 
     const checkWeeklyCompleted = (taskId, col) => {
+        // console.log("MASUK CHECK", taskId, col);
         const list = weekproMap[taskId];
 
         if (!Array.isArray(list)) return false;  
-
-        return list.some(w => Number(w.week_index) === Number(col));
+        // console.log("CHECK", "col:", col, "DB:", list.map(w => w.weekIndex));
+        return list.some(w => Number(w.weekIndex) === Number(col));
     };
 
     const getWeekIndexForDate = (selectedDate) => {
@@ -227,16 +225,9 @@ const ProjectCalendar = ({ tasks = [], project }) => {
                         (sel) => sel.task === row.name && sel.col === i
                     );
 
-                    
-                    // const isCompleted = completedTasks.includes(row.id);
-                    // const isCompleted = completedCells.some(
-                    //     (cell) => cell.taskId === row.id && cell.col === i
-                    // );
                     const dbCompleted = checkWeeklyCompleted(row.id, i);
 
-                    const isCompleted = dbCompleted || completedCells.some(
-                        (cell) => cell.taskId === row.id && cell.col === i
-                    );
+                    const isCompleted = dbCompleted 
 
                     const bg = isCompleted
                     ? "#22c55e" 
@@ -297,6 +288,7 @@ const ProjectCalendar = ({ tasks = [], project }) => {
                     );
                     
                 })}
+                
 
                 <div style={{ padding: '6px 8px' }} className="text-xs text-zinc-500 dark:text-zinc-400 text-right">
                     {format(row.end, 'MMM d')}
@@ -305,25 +297,6 @@ const ProjectCalendar = ({ tasks = [], project }) => {
         );
     };
 
-    // grid-based row renderer: returns grid cells in sequence (left label, N cells, right label)
-    // const renderRow = (row) => {
-    //     const bg = statusColors[row.status] || statusColors.DEFAULT;
-    //     return (
-    //         <>
-    //             <div style={{ padding: '6px 8px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} className="text-sm text-zinc-700 dark:text-zinc-300">{row.name}</div>
-    //             {visibleColumns.map((c, i) => {
-    //                 const overlap = (row.start < c.colEnd) && (row.end > c.colStart);
-    //                 return (
-    //                     <div key={`${row.name}-c-${i}`} style={{ width: computedCellSize, height: computedCellSize, borderRight: '1px solid rgba(0,0,0,0.06)' }}>
-    //                         <div style={{ width: '100%', height: '100%', background: overlap ? bg : 'transparent', borderRadius: 2 }} />
-    //                     </div>
-    //                 );
-    //             })}
-    //             <div style={{ padding: '6px 8px' }} className="text-xs text-zinc-500 dark:text-zinc-400 text-right">{format(row.end, 'MMM d')}</div>
-    //         </>
-    //     );
-    // };
-    
     return (
         <div className="not-dark:bg-white dark:bg-gradient-to-br dark:from-zinc-800/70 dark:to-zinc-900/50 border border-zinc-300 dark:border-zinc-800 rounded-lg p-4">
             <div className="flex items-center justify-between mb-4">
@@ -554,12 +527,16 @@ const ProjectCalendar = ({ tasks = [], project }) => {
                 visibleColumns={visibleColumns}
                 taskName={selectedTaskForDialog?.name}
                 weekIndexOnClick={selectedColForDialog}  
-                onSuccess={() =>
-                    setCompletedCells(prev => [
-                        ...prev,
-                        { taskId: selectedTaskForDialog.id, col: selectedColForDialog }
-                    ])
-                }
+                // onSuccess={() =>
+                //     setCompletedCells(prev => [
+                //         ...prev,
+                //         { taskId: selectedTaskForDialog.id, col: selectedColForDialog }
+                //     ])
+                // }
+                onSuccess={async () => {
+                    await fetchWeekpro(selectedTaskForDialog.id);
+                }}
+
                 
             />
 
