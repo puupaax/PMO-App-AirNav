@@ -139,6 +139,31 @@ const ProjectCalendar = ({ tasks = [], project }) => {
         window.addEventListener('resize', resize);
         return () => window.removeEventListener('resize', resize);
     }, [leftWidth, rightWidth, monthsAll.length]);
+    // useEffect(() => {
+    //     const el = scrollerRef.current || containerRef.current;
+    //     if (!el) return;
+
+    //     const calc = () => {
+    //         // gunakan boundingRect agar akurat & update realtime
+    //         const rect = el.getBoundingClientRect();
+    //         const available = Math.max(0, rect.width - leftWidth - rightWidth);
+
+    //         const monthsToFit = Math.min(MONTHS_PER_PAGE, monthsAll.length);
+    //         const maxCols = Math.max(1, monthsToFit * 4);
+    //         const ideal = Math.floor(available / maxCols);
+
+    //         setComputedCellSize(Math.max(MIN_CELL, ideal));
+    //     };
+
+    //     // observer untuk detect resize pada container
+    //     const ro = new ResizeObserver(calc);
+    //     ro.observe(el);
+
+    //     // hitung awal
+    //     calc();
+
+    //     return () => ro.disconnect();
+    // }, [monthsAll.length]);
 
 
     // const [selectedTask, setSelectedTask] = useState(null);
@@ -352,7 +377,8 @@ const ProjectCalendar = ({ tasks = [], project }) => {
                     ref={containerRef}
                     className="relative"
                     style={{
-                        minWidth: leftWidth + (totalColumns * computedCellSize) + rightWidth,
+                        width: leftWidth + (totalColumns * computedCellSize) + rightWidth,
+                        minWidth: "100%",
                     }}
                 >
                     {/* Timeline grid */}
