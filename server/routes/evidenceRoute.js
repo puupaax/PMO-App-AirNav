@@ -7,7 +7,7 @@ const evidenceRouter = express.Router();
 // evidenceRouter.post('/', addEvidence);
 evidenceRouter.post("/", upload.single("attachment"), addEvidence);
 //evidenceRouter.get("/", getAllEvidence);
-evidenceRouter.get("/:taskId", getTaskEvidences);
+evidenceRouter.get("/:taskId/:weekIndex", getTaskEvidences);
 
 
 // evidenceRouter.get("/:taskId", getTaskEvidences);

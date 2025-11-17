@@ -157,11 +157,13 @@ model Evidence {
     userId    String
     taskId    String
     date      DateTime
-    weekIndex Int?    
+    weekIndex Int?
     createdAt DateTime @default(now())
 
     user User @relation(fields: [userId], references: [id], onDelete: Cascade)
     task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+    @@unique([taskId, weekIndex])
 }
 
 
