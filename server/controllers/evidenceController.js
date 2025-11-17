@@ -40,19 +40,8 @@ export const addEvidence = async (req, res) => {
         }
 
         // 3. Upsert evidence (UPDATE jika week sudah ada, CREATE jika belum)
-        const evidence = await prisma.evidence.upsert({
-            where: {
-                taskId_weekIndex: {
-                    taskId,
-                    weekIndex: Number(weekIndex),
-                },
-            },
-            update: {
-                content: keterangan,
-                image_url,
-                date: new Date(tanggal),
-            },
-            create: {
+        const evidence = await prisma.evidence.create({
+            data: {
                 taskId,
                 userId,
                 content: keterangan,
@@ -62,6 +51,7 @@ export const addEvidence = async (req, res) => {
             },
             include: { user: true },
         });
+
 
         res.json({
             message: "Evidence saved successfully",
@@ -89,6 +79,8 @@ export const getTaskEvidences = async (req, res) => {
       },
       orderBy: { date: "asc" }
     });
+
+    console.log("TASK:", taskId, "WEEK:", weekIndex);
 
     res.json(evidences);
   } catch (error) {

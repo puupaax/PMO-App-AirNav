@@ -163,7 +163,7 @@ model Evidence {
     user User @relation(fields: [userId], references: [id], onDelete: Cascade)
     task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
 
-    @@unique([taskId, weekIndex])
+    @@index([taskId, weekIndex])
 }
 
 
