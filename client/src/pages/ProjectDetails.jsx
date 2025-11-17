@@ -19,6 +19,7 @@ export default function ProjectDetail() {
 
     const [project, setProject] = useState(null);
     const [tasks, setTasks] = useState([]);
+    // const [weekpro, setWeekpro] = useState([]);
     const [showCreateTask, setShowCreateTask] = useState(false);
     const [activeTab, setActiveTab] = useState(tab || "tasks");
 
@@ -121,7 +122,7 @@ export default function ProjectDetail() {
                     )}
                     {activeTab === "calendar" && (
                         <div className=" dark:bg-zinc-900/40 rounded max-w-6xl">
-                            <ProjectCalendar tasks={tasks} project={project} />
+                            <ProjectCalendar tasks={tasks} project={project}/>
                         </div>
                     )}
                     {activeTab === "settings" && (

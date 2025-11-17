@@ -1,6 +1,9 @@
 import React, { useMemo, useRef, useState, useEffect } from "react";
 import { format, differenceInCalendarDays, addDays, startOfMonth, addMonths } from "date-fns";
 import AddFileDialog from "./AddFileDialog.jsx";
+import { useAuth } from "@clerk/clerk-react";
+import api from "../configs/api";
+
 
 // Status color map to match the sample image
 const statusColors = {
@@ -15,6 +18,7 @@ const ProjectCalendar = ({ tasks = [], project }) => {
     // console.log("ProjectCalendar project end_date =", project.end_date);
     console.log("tasks start date =", tasks);
 
+
     // Build rows from tasks: each task becomes a row
     const rows = useMemo(() => {
         if (!tasks || tasks.length === 0) return [];
@@ -26,7 +30,7 @@ const ProjectCalendar = ({ tasks = [], project }) => {
             const end = t.end_date ? new Date(t.end_date) : null;
             // const due = t.due_date ? new Date(t.due_date) : null;
             // prefer project start_date, else task.createdAt, else estimate
-            const startFromProject = project && project.start_date ? new Date(project.start_date) : null;
+            // const startFromProject = project && project.start_date ? new Date(project.start_date) : null;
             const start = (t.start_date ? new Date(t.start_date) : (end ? addDays(end, -7) : addDays(today, -3)));
 
             // derive status from task.status and due date
@@ -38,6 +42,7 @@ const ProjectCalendar = ({ tasks = [], project }) => {
             return { id: t.id, name: title, start, end: end || addDays(start, 1), status };
         }).slice(0, 50); // cap rows for performance
     }, [tasks, project]);
+
 
     // Compute timeline range
     const { timelineStart, timelineEnd, totalDays } = useMemo(() => {
@@ -139,34 +144,6 @@ const ProjectCalendar = ({ tasks = [], project }) => {
         window.addEventListener('resize', resize);
         return () => window.removeEventListener('resize', resize);
     }, [leftWidth, rightWidth, monthsAll.length]);
-    // useEffect(() => {
-    //     const el = scrollerRef.current || containerRef.current;
-    //     if (!el) return;
-
-    //     const calc = () => {
-    //         // gunakan boundingRect agar akurat & update realtime
-    //         const rect = el.getBoundingClientRect();
-    //         const available = Math.max(0, rect.width - leftWidth - rightWidth);
-
-    //         const monthsToFit = Math.min(MONTHS_PER_PAGE, monthsAll.length);
-    //         const maxCols = Math.max(1, monthsToFit * 4);
-    //         const ideal = Math.floor(available / maxCols);
-
-    //         setComputedCellSize(Math.max(MIN_CELL, ideal));
-    //     };
-
-    //     // observer untuk detect resize pada container
-    //     const ro = new ResizeObserver(calc);
-    //     ro.observe(el);
-
-    //     // hitung awal
-    //     calc();
-
-    //     return () => ro.disconnect();
-    // }, [monthsAll.length]);
-
-
-    // const [selectedTask, setSelectedTask] = useState(null);
 
     const [selectedCell, setSelectedCell] = useState([]);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -175,6 +152,46 @@ const ProjectCalendar = ({ tasks = [], project }) => {
     const [completedCells, setCompletedCells] = useState([]);
     const [selectedColForDialog, setSelectedColForDialog] = useState(null);
     const [selectedWeek, setSelectedWeek] = useState(null);
+    const [weekpro, setWeekpro] = useState([]);
+    const [weekproMap, setWeekproMap] = useState({});
+
+
+    const { getToken } = useAuth();
+
+    const fetchWeekpro = async (taskId) => {
+        try {
+            const token = await getToken();
+            const { data } = await api.get(`/api/weekly-progress/${taskId}`, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+
+            setWeekproMap(prev => ({
+                        ...prev,
+                        [taskId]: data
+            }));
+
+            console.log("WEEKPRO DATA =", data)
+
+        } catch (error) {
+            console.error(error);
+        }
+    };
+
+    useEffect(() => {
+        if (!tasks || tasks.length === 0) return;
+
+        tasks.forEach(t => {
+            if (t.id) fetchWeekpro(t.id);
+        });
+    }, [tasks]);
+
+    const checkWeeklyCompleted = (taskId, col) => {
+        const list = weekproMap[taskId];
+
+        if (!Array.isArray(list)) return false;  
+
+        return list.some(w => Number(w.week_index) === Number(col));
+    };
 
     const getWeekIndexForDate = (selectedDate) => {
         for (let i = 0; i < visibleColumns.length; i++) {
@@ -188,9 +205,6 @@ const ProjectCalendar = ({ tasks = [], project }) => {
     };
 
     const renderRow = (row) => {
-        // const isSelected = selectedTask?.name === row.name;
-        // const bg = isSelected ? "#22c55e" : (statusColors[row.status] || statusColors.DEFAULT);
-
         return (
             <>
                 <div
@@ -203,18 +217,18 @@ const ProjectCalendar = ({ tasks = [], project }) => {
                 {visibleColumns.map((c, i) => {
                     const overlap = (row.start < c.colEnd) && (row.end > c.colStart);
 
-                    // const isSelected =
-                    //     selectedCell?.task === row.name && selectedCell?.col === i;
                     const isSelected = selectedCell.some(
                         (sel) => sel.task === row.name && sel.col === i
                     );
 
-                    // const bg = isSelected
-                    //     ? "#22c55e"
-                    //     : (overlap ? (statusColors[row.status] || statusColors.DEFAULT) : "transparent");
-
+                    
                     // const isCompleted = completedTasks.includes(row.id);
-                    const isCompleted = completedCells.some(
+                    // const isCompleted = completedCells.some(
+                    //     (cell) => cell.taskId === row.id && cell.col === i
+                    // );
+                    const dbCompleted = checkWeeklyCompleted(row.id, i);
+
+                    const isCompleted = dbCompleted || completedCells.some(
                         (cell) => cell.taskId === row.id && cell.col === i
                     );
 

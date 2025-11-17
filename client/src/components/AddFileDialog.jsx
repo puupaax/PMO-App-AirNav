@@ -85,7 +85,7 @@ export default function AddFileDialog({ showDialog, setShowDialog, taskId, getWe
             //     headers: { Authorization: `Bearer ${token}` }
             // });
 
-
+            if (typeof onSuccess === "function") onSuccess();
             toast.success(data.message || "Evidence added successfully");
 
             fetchEvidences(); // ⬅️ refresh list setelah upload

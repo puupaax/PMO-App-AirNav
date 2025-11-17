@@ -64,7 +64,7 @@ export const createProject = async(req, res) => {
             where: {id: project.id},
             include: {
                 members: {include: {user: true}},
-                tasks: {include: {assignee: true, comments: {include: {user: true}}}},
+                tasks: {include: {assignee: true, comments: {include: {user: true}}, weekprogress: true}},
                 owner: true
             }
         })

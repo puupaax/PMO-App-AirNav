@@ -136,3 +136,25 @@ export const deleteTask = async (req, res) => {
         res.status(500).json({ message: error.code || error.message });
     }
 }
+
+// Get tasks by projectId
+export const getTasksByProject = async (req, res) => {
+    try {
+        const { projectId } = req.params;
+
+        const tasks = await prisma.task.findMany({
+            where: { projectId },
+            include: {
+                assignee: true,
+                weekprogress: true,  
+            },
+            orderBy: { createdAt: "asc" }
+        });
+
+        res.json({ tasks });
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({ message: error.message });
+    }
+};
+
