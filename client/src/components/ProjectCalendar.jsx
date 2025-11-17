@@ -152,6 +152,12 @@ const ProjectCalendar = ({ tasks = [], project }) => {
     const [completedCells, setCompletedCells] = useState([]);
     const [selectedColForDialog, setSelectedColForDialog] = useState(null);
     const [selectedWeek, setSelectedWeek] = useState(null);
+    const [selectedWeekIndex, setSelectedWeekIndex] = useState(null);
+
+    // const getWeekIndexFromColumn = (colIndex) => {
+    //     return colIndex; // week index = index kolom
+    // };
+
     const [weekpro, setWeekpro] = useState([]);
     const [weekproMap, setWeekproMap] = useState({});
 
@@ -249,6 +255,12 @@ const ProjectCalendar = ({ tasks = [], project }) => {
                             }}
                             onClick={() => {
                                 if (!overlap) return;
+
+                                //Simpan weekIndex
+                                setSelectedWeekIndex(i);
+                                setSelectedColForDialog(i);
+
+                                setIsDialogOpen(true);
 
                                 setSelectedCell((prev) => {
                                     const exists = prev.some(
@@ -541,6 +553,7 @@ const ProjectCalendar = ({ tasks = [], project }) => {
                 getWeekIndexForDate={getWeekIndexForDate}
                 visibleColumns={visibleColumns}
                 taskName={selectedTaskForDialog?.name}
+                weekIndexOnClick={selectedColForDialog}  
                 onSuccess={() =>
                     setCompletedCells(prev => [
                         ...prev,
